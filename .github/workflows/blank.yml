@@ -1,0 +1,46 @@
+name: TCE Monitor
+
+on:
+  workflow_dispatch:        # ручной запуск
+  schedule:
+    - cron: "*/10 * * * *"  # каждые 10 минут
+
+jobs:
+  run-monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Google Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run monitor script
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          SEARCH_TEXT: ${{ secrets.SEARCH_TEXT }}
+          SEARCH_TEXT_2: ${{ secrets.SEARCH_TEXT_2 }}
+          EXPECTED_COUNT_1: ${{ secrets.EXPECTED_COUNT_1 }}
+          EXPECTED_COUNT_2: ${{ secrets.EXPECTED_COUNT_2 }}
+          URL: ${{ secrets.URL }}
+          GITHUB_ACTIONS: "true"   # чтоб скрипт знал, что он работает в Actions
+        run: |
+          python tce_telegram_monitor.py
