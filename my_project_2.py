@@ -2,7 +2,7 @@
 """
 tce_telegram_monitor.py
 Мониторит tce.by/search.html по запросам SEARCH_TEXT и SEARCH_TEXT_2
-и шлёт сообщение в Telegram, если кол-во найденных мероприятий
+и шлёт сообщение в Telegram, если количество найденных мероприятий
 отличается от ожидаемого.
 """
 
@@ -17,86 +17,91 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
 
-# -------- Настройки --------
+# ============================================================
+# Загрузка переменных окружения
+# ============================================================
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "7348919449:AAEDdogDWEp1N75iYVPWrniojpirRYAsnJg")
-CHAT_ID = os.getenv("CHAT_ID", "235204224")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 SEARCH_TEXT = os.getenv("SEARCH_TEXT", "Записки юного врача")
 SEARCH_TEXT_2 = os.getenv("SEARCH_TEXT_2", "На чёрной")
 
 URL = os.getenv("URL", "https://tce.by/search.html")
 
-# ожидаемые количества
 EXPECTED_COUNT_1 = int(os.getenv("EXPECTED_COUNT_1", "4"))
 EXPECTED_COUNT_2 = int(os.getenv("EXPECTED_COUNT_2", "2"))
 
 
-# -------- Логи --------
+# ============================================================
+# Логи
+# ============================================================
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("tce_monitor.log"),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.StreamHandler()]
 )
 
 
-# -------- Telegram --------
+# ============================================================
+# Telegram
+# ============================================================
 
-def send_telegram(text: str) -> bool:
+def send_telegram(text: str):
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
-        r = requests.post(url, data=payload, timeout=15)
-        r.raise_for_status()
-        logging.info("Сообщение отправлено в Telegram.")
-        return True
+        requests.post(url, data=payload, timeout=15)
+        logging.info("Отправлено сообщение в Telegram")
     except Exception as e:
         logging.exception("Ошибка отправки Telegram: %s", e)
-        return False
 
 
-# -------- Selenium --------
+# ============================================================
+# Selenium driver (универсальный)
+# ============================================================
 
 def get_driver():
-    """Создаёт надежный драйвер для Windows, Linux и GitHub Actions."""
     from selenium.webdriver.chrome.options import Options
 
     options = Options()
+
+    # GitHub Actions принудительно headless
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        options.add_argument("--headless=new")
+
+    # В обычной среде тоже можно headless
+    else:
+        options.add_argument("--headless=new")
+
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1200,800")
-    options.add_argument("--ignore-certificate-errors")
 
-    # GitHub Actions — только headless
-    if os.getenv("GITHUB_ACTIONS") == "true":
-        options.add_argument("--headless=new")
-    else:
-        # На Windows лучше оставить headless включённым
-        options.add_argument("--headless=new")
-
-    # Selenium Manager автоматически скачает нужный драйвер
     driver = webdriver.Chrome(options=options)
-
     return driver
 
 
+# ============================================================
+# Основной поиск
+# ============================================================
+
 def get_count_with_selenium(search_text: str) -> int:
-    """Возвращает количество найденных мероприятий по имени."""
     driver = None
+
     try:
         driver = get_driver()
         driver.get(URL)
 
         wait = WebDriverWait(driver, 20)
 
-        input_box = wait.until(EC.presence_of_element_located((By.NAME, "tags")))
+        input_box = wait.until(
+            EC.presence_of_element_located((By.NAME, "tags"))
+        )
         input_box.clear()
         input_box.send_keys(search_text)
 
@@ -104,12 +109,11 @@ def get_count_with_selenium(search_text: str) -> int:
         reload_btn.click()
 
         try:
-            wait_short = WebDriverWait(driver, 10)
-            wait_short.until(
+            WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "#playbill tbody tr"))
             )
         except TimeoutException:
-            logging.info("[%s] Нет результатов -> 0", search_text)
+            logging.info("[%s] Результатов нет → 0", search_text)
             return 0
 
         rows = driver.find_elements(By.CSS_SELECTOR, "#playbill tbody tr")
@@ -120,7 +124,7 @@ def get_count_with_selenium(search_text: str) -> int:
         return count
 
     except Exception as e:
-        logging.exception("Ошибка Selenium при '%s': %s", search_text, e)
+        logging.exception("Ошибка Selenium для '%s': %s", search_text, e)
         raise
 
     finally:
@@ -131,30 +135,41 @@ def get_count_with_selenium(search_text: str) -> int:
                 pass
 
 
-# -------- Основная логика --------
+# ============================================================
+# Основная логика мониторинга
+# ============================================================
 
 def main_once():
     alerts = []
 
     try:
-        # первый запрос
+        # Проверка 1
         count1 = get_count_with_selenium(SEARCH_TEXT)
         if count1 != EXPECTED_COUNT_1:
             alerts.append(
                 f"🔎 <b>{SEARCH_TEXT}</b>\n"
                 f"Ожидалось: <b>{EXPECTED_COUNT_1}</b>, найдено: <b>{count1}</b>\n"
             )
+        else:
+            logging.info("OK: %s = %d", SEARCH_TEXT, count1)
 
-        # второй запрос
+        # Проверка 2
         count2 = get_count_with_selenium(SEARCH_TEXT_2)
         if count2 != EXPECTED_COUNT_2:
             alerts.append(
                 f"🔎 <b>{SEARCH_TEXT_2}</b>\n"
                 f"Ожидалось: <b>{EXPECTED_COUNT_2}</b>, найдено: <b>{count2}</b>\n"
             )
+        else:
+            logging.info("OK: %s = %d", SEARCH_TEXT_2, count2)
 
+        # Если есть алерты → отправляем
         if alerts:
-            msg = "⚠️ <b>Алерт мониторинга tce.by</b>\n\n" + "\n".join(alerts) + f"\n{URL}"
+            msg = (
+                "⚠️ <b>Алерт мониторинга tce.by</b>\n\n"
+                + "\n".join(alerts)
+                + f"\n{URL}"
+            )
             send_telegram(msg)
         else:
             logging.info("Все значения соответствуют ожидаемым.")
@@ -163,6 +178,10 @@ def main_once():
         logging.exception("Ошибка мониторинга: %s", e)
         send_telegram(f"❗ Ошибка мониторинга: {e}")
 
+
+# ============================================================
+# Запуск
+# ============================================================
 
 if __name__ == "__main__":
     main_once()
