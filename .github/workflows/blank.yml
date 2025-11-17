@@ -43,4 +43,4 @@ jobs:
           URL: ${{ secrets.URL }}
           GITHUB_ACTIONS: "true"   # чтоб скрипт знал, что он работает в Actions
         run: |
-          python tce_telegram_monitor.py
+          python my_project_2.py
