@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 tce_telegram_monitor.py
-Мониторит tce.by/search.html по запросам SEARCH_TEXT и SEARCH_TEXT_2
+Мониторит tce.by/search.html по запросам SEARCH_TEXT, SEARCH_TEXT_2, SEARCH_TEXT_3
 и шлёт сообщение в Telegram, если количество найденных мероприятий
 отличается от ожидаемого.
 """
@@ -28,11 +28,13 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 SEARCH_TEXT = os.getenv("SEARCH_TEXT", "Записки юного врача")
 SEARCH_TEXT_2 = os.getenv("SEARCH_TEXT_2", "На чёрной")
+SEARCH_TEXT_3 = os.getenv("SEARCH_TEXT_3", "Хутар")
 
 URL = os.getenv("URL", "https://tce.by/search.html")
 
 EXPECTED_COUNT_1 = 3
-EXPECTED_COUNT_2 = int(os.getenv("EXPECTED_COUNT_2", "2"))
+EXPECTED_COUNT_2 = 2
+EXPECTED_COUNT_3 = 1
 
 
 # ============================================================
@@ -72,8 +74,6 @@ def get_driver():
     # GitHub Actions принудительно headless
     if os.getenv("GITHUB_ACTIONS") == "true":
         options.add_argument("--headless=new")
-
-    # В обычной среде тоже можно headless
     else:
         options.add_argument("--headless=new")
 
@@ -163,6 +163,16 @@ def main_once():
         else:
             logging.info("OK: %s = %d", SEARCH_TEXT_2, count2)
 
+        # Проверка 3
+        count3 = get_count_with_selenium(SEARCH_TEXT_3)
+        if count3 != EXPECTED_COUNT_3:
+            alerts.append(
+                f"🔎 <b>{SEARCH_TEXT_3}</b>\n"
+                f"Ожидалось: <b>{EXPECTED_COUNT_3}</b>, найдено: <b>{count3}</b>\n"
+            )
+        else:
+            logging.info("OK: %s = %d", SEARCH_TEXT_3, count3)
+
         # Если есть алерты → отправляем
         if alerts:
             msg = (
@@ -185,5 +195,3 @@ def main_once():
 
 if __name__ == "__main__":
     main_once()
-
-
