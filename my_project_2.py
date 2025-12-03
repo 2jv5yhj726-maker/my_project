@@ -33,7 +33,7 @@ SEARCH_TEXT_3 = os.getenv("SEARCH_TEXT_3", "Хутар")
 URL = os.getenv("URL", "https://tce.by/search.html")
 
 EXPECTED_COUNT_1 = 2
-EXPECTED_COUNT_2 = 2
+EXPECTED_COUNT_2 = 1
 EXPECTED_COUNT_3 = 2
 
 
@@ -195,5 +195,6 @@ def main_once():
 
 if __name__ == "__main__":
     main_once()
+
 
 
