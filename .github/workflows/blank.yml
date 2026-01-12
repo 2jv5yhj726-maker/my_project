@@ -3,7 +3,7 @@ name: TCE Monitor
 on:
   workflow_dispatch:        # ручной запуск
   schedule:
-    - cron: "*/10 * * * *"  # каждые 10 минут
+    - cron: "*/5 * * * *"  # каждые 10 минут
 
 jobs:
   run-monitor:
